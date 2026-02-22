@@ -1,0 +1,18 @@
+[package]
+name = "slime-search"
+version = "0.1.0"
+edition = "2021"
+description = "Minecraft multi-chunk slime cluster searcher"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[features]
+default = []
+parallel = ["rayon"]
+
+[dependencies.rayon]
+version = "1"
+optional = true

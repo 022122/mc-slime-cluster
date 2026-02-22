@@ -1,0 +1,11 @@
+# Rust 构建产物
+/target/
+Cargo.lock
+
+# 计划阶段文件
+.spec-workflow/
+docs/
+
+# Added by cargo
+
+/target
