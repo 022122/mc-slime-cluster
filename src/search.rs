@@ -77,16 +77,15 @@ fn search_masked(params: &SearchParams) -> Vec<SearchResult> {
     let height = (z_max - z_min + 1) as usize;
     let pw = params.pattern_w as usize;
     let ph = params.pattern_h as usize;
-    let total = params.required_count();
+    let total = (pw * ph) as u32; // 精确匹配：每个格子都要对
 
-    if pw > width || ph > height || total == 0 {
+    if pw > width || ph > height {
         return Vec::new();
     }
 
     // 环形行缓冲区
     let mut row_buf = vec![vec![false; width]; ph];
-    let mut heap: BinaryHeap<Reverse<(u32, i32, i32)>> = BinaryHeap::new();
-    let collect_n = params.top_n * 8;
+    let mut exact_results: Vec<(i32, i32)> = Vec::new();
 
     for iz in 0..height {
         let cz = z_min + iz as i32;
@@ -104,22 +103,49 @@ fn search_masked(params: &SearchParams) -> Vec<SearchResult> {
         // 窗口最老行在 row_buf 中的起始索引
         let base_buf = (iz + 1 - ph) % ph;
 
-        // 遍历所有 x 窗口位置
+        // 遍历所有 x 窗口位置（精确匹配：绿=史莱姆，空=非史莱姆）
         for wx in 0..=(width - pw) {
             let mut matched = 0u32;
             for dz in 0..ph {
                 let row_idx = (base_buf + dz) % ph;
                 for dx in 0..pw {
-                    if params.is_required(dx, dz) && row_buf[row_idx][wx + dx] {
+                    let is_slime = row_buf[row_idx][wx + dx];
+                    let want_slime = params.is_required(dx, dz);
+                    if is_slime == want_slime {
                         matched += 1;
                     }
                 }
             }
-            check_and_push(&mut heap, collect_n, matched, x_min + wx as i32, window_z);
+            // 只收集精确匹配的结果
+            if matched == total {
+                exact_results.push((x_min + wx as i32, window_z));
+                if exact_results.len() >= params.top_n {
+                    break;
+                }
+            }
         }
+        if exact_results.len() >= params.top_n { break; }
     }
 
-    collect_results(heap, params, total)
+    // 精确匹配模式：直接返回，不需要堆排序
+    let mut results: Vec<SearchResult> = Vec::new();
+    for &(cx, cz) in &exact_results {
+        let overlaps = results.iter().any(|r| {
+            let dx = (cx - r.chunk_x).unsigned_abs();
+            let dz = (cz - r.chunk_z).unsigned_abs();
+            dx < pw as u32 && dz < ph as u32
+        });
+        if !overlaps {
+            results.push(SearchResult {
+                chunk_x: cx,
+                chunk_z: cz,
+                matched: total,
+                total,
+            });
+            if results.len() >= params.top_n { break; }
+        }
+    }
+    results
 }
 
 /// 从堆中提取候选并去重
@@ -274,8 +300,8 @@ mod tests {
     }
 
     #[test]
-    fn test_search_masked_cross() {
-        // 十字形图案 3x3:
+    fn test_search_masked_cross_exact() {
+        // 十字形图案 3x3 — 精确匹配
         // .X.
         // XXX
         // .X.
@@ -288,51 +314,38 @@ mod tests {
             seed: 12345,
             origin_x: 0,
             origin_z: 0,
-            search_radius: 100,
+            search_radius: 200,
             pattern_w: 3,
             pattern_h: 3,
             top_n: 5,
             pattern_mask: Some(mask),
         };
         let results = search(&params);
-        assert!(!results.is_empty());
+        // 精确匹配：total = 9（每个格子都要对），matched = 9
         for r in &results {
-            assert_eq!(r.total, 5); // 十字形有 5 个 required
-            assert!(r.matched <= 5);
+            assert_eq!(r.total, 9);
+            assert_eq!(r.matched, 9);
         }
     }
 
     #[test]
-    fn test_search_masked_matches_full_when_all_true() {
-        // 全 true 的 mask 应该和无 mask 结果一致
+    fn test_search_masked_all_true_finds_exact() {
+        // 全 true 的 2x2 mask = 精确匹配 4 个全是史莱姆
         let mask = vec![true; 4];
-        let params_masked = SearchParams {
+        let params = SearchParams {
             seed: 0,
             origin_x: 0,
             origin_z: 0,
-            search_radius: 50,
+            search_radius: 100,
             pattern_w: 2,
             pattern_h: 2,
             top_n: 5,
             pattern_mask: Some(mask),
         };
-        let params_full = SearchParams {
-            seed: 0,
-            origin_x: 0,
-            origin_z: 0,
-            search_radius: 50,
-            pattern_w: 2,
-            pattern_h: 2,
-            top_n: 5,
-            pattern_mask: None,
-        };
-        let r_masked = search(&params_masked);
-        let r_full = search(&params_full);
-        assert_eq!(r_masked.len(), r_full.len());
-        for (a, b) in r_masked.iter().zip(r_full.iter()) {
-            assert_eq!(a.chunk_x, b.chunk_x);
-            assert_eq!(a.chunk_z, b.chunk_z);
-            assert_eq!(a.matched, b.matched);
+        let results = search(&params);
+        for r in &results {
+            assert_eq!(r.total, 4);
+            assert_eq!(r.matched, 4); // 精确匹配
         }
     }
 }
