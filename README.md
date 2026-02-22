@@ -4,6 +4,8 @@ Search for multi-chunk slime cluster patterns in Minecraft Java Edition worlds.
 
 Built in Rust, compiles to both native CLI and WebAssembly for a pure client-side web app.
 
+**Live Demo:** https://demo.hypersyn.de/slime/
+
 ## Features
 
 - Exact replica of Java `java.util.Random` LCG (48-bit, all versions)
