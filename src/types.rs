@@ -18,6 +18,30 @@ pub struct SearchParams {
     pub pattern_h: u32,
     /// 返回结果数量，默认 10
     pub top_n: usize,
+    /// 自定义图案掩码（可选）
+    /// 长度 = pattern_w * pattern_h，行优先，true = 要求是史莱姆区块
+    /// 为 None 时等同于全 true（矩形填满）
+    #[serde(default)]
+    pub pattern_mask: Option<Vec<bool>>,
+}
+
+impl SearchParams {
+    /// 图案中要求为史莱姆的区块总数
+    pub fn required_count(&self) -> u32 {
+        match &self.pattern_mask {
+            Some(mask) => mask.iter().filter(|&&v| v).count() as u32,
+            None => self.pattern_w * self.pattern_h,
+        }
+    }
+
+    /// 检查 (dx, dz) 是否在图案中被要求
+    #[inline]
+    pub fn is_required(&self, dx: usize, dz: usize) -> bool {
+        match &self.pattern_mask {
+            Some(mask) => mask[dz * self.pattern_w as usize + dx],
+            None => true,
+        }
+    }
 }
 
 /// 搜索结果

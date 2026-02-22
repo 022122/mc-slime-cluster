@@ -39,10 +39,37 @@ struct Cli {
     /// 以 JSON 格式输出
     #[arg(long, default_value_t = false)]
     json: bool,
+
+    /// 自定义图案掩码，用 X 和 . 表示（行用 / 分隔）
+    /// 例如 3x3 十字形: ".X./XXX/.X."
+    #[arg(long)]
+    pattern: Option<String>,
+}
+
+fn parse_pattern(s: &str, w: u32, h: u32) -> Option<Vec<bool>> {
+    let rows: Vec<&str> = s.split('/').collect();
+    if rows.len() != h as usize { return None; }
+    let mut mask = Vec::with_capacity((w * h) as usize);
+    for row in &rows {
+        let chars: Vec<char> = row.chars().collect();
+        if chars.len() != w as usize { return None; }
+        for &c in &chars {
+            mask.push(matches!(c, 'X' | 'x' | '1'));
+        }
+    }
+    Some(mask)
 }
 
 fn main() {
     let cli = Cli::parse();
+
+    let pattern_mask = cli.pattern.as_ref().and_then(|p| {
+        let mask = parse_pattern(p, cli.width, cli.height);
+        if mask.is_none() {
+            eprintln!("警告: 图案格式不匹配 {}x{}，忽略", cli.width, cli.height);
+        }
+        mask
+    });
 
     let params = SearchParams {
         seed: cli.seed,
@@ -52,6 +79,7 @@ fn main() {
         pattern_w: cli.width,
         pattern_h: cli.height,
         top_n: cli.top,
+        pattern_mask,
     };
 
     let search_area = (params.search_radius * 2 + 1) as u64;

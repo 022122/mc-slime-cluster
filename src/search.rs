@@ -5,12 +5,19 @@ use std::cmp::Reverse;
 
 /// 执行多联结构史莱姆区块搜索
 ///
-/// 流式算法（内存 O(width × pattern_h)，不再需要 O(width × height)）：
-/// 1. 逐行扫描 Z 方向
-/// 2. 维护列累加数组 col_sum[x]（最近 H 行的史莱姆数）
-/// 3. 对 col_sum 做宽度 W 的滑动窗口求和
-/// 4. 最小堆维护 Top-N
+/// 两种模式：
+/// - 无 mask（全填充矩形）：流式滑动窗口 O(W×H)
+/// - 有 mask（自定义图案）：流式 + 逐窗口匹配 O(W×H×pw×ph)
 pub fn search(params: &SearchParams) -> Vec<SearchResult> {
+    if params.pattern_mask.is_some() {
+        search_masked(params)
+    } else {
+        search_full_rect(params)
+    }
+}
+
+/// 快速路径：全填充矩形，滑动窗口
+fn search_full_rect(params: &SearchParams) -> Vec<SearchResult> {
     let x_min = params.origin_x - params.search_radius;
     let x_max = params.origin_x + params.search_radius;
     let z_min = params.origin_z - params.search_radius;
@@ -26,66 +33,110 @@ pub fn search(params: &SearchParams) -> Vec<SearchResult> {
         return Vec::new();
     }
 
-    // col_sum[x] = 最近 ph 行中，列 x 的史莱姆区块数
     let mut col_sum = vec![0u32; width];
-
-    // 环形缓冲区，存储最近 ph 行的史莱姆数据
-    // row_buf[row_idx % ph][x] = 该行该列是否为史莱姆区块
     let mut row_buf = vec![vec![0u32; width]; ph];
-
-    // 最小堆维护 Top-N
     let mut heap: BinaryHeap<Reverse<(u32, i32, i32)>> = BinaryHeap::new();
+    let collect_n = params.top_n * 8;
 
     for iz in 0..height {
         let cz = z_min + iz as i32;
         let buf_idx = iz % ph;
 
-        // 计算当前行的史莱姆数据
         for ix in 0..width {
             let cx = x_min + ix as i32;
             let val = if is_slime_chunk(params.seed, cx, cz) { 1u32 } else { 0 };
-
-            // 从 col_sum 中减去即将被覆盖的旧行数据
             col_sum[ix] -= row_buf[buf_idx][ix];
-            // 写入新数据
             row_buf[buf_idx][ix] = val;
-            // 加上新行数据
             col_sum[ix] += val;
         }
 
-        // 只有积累了 ph 行后才开始计算窗口
-        if iz + 1 < ph {
-            continue;
-        }
+        if iz + 1 < ph { continue; }
 
-        // 窗口起始 Z 坐标
         let window_z = z_min + (iz + 1 - ph) as i32;
-
-        // 对 col_sum 做宽度 pw 的滑动窗口求和
         let mut window_sum: u32 = col_sum[..pw].iter().sum();
-
-        // 检查第一个窗口位置
-        // 收集更多候选以便去重后仍有足够结果
-        let collect_n = params.top_n * 8;
         check_and_push(&mut heap, collect_n, window_sum, x_min, window_z);
 
-        // 滑动窗口
         for ix in 1..=(width - pw) {
             window_sum += col_sum[ix + pw - 1];
             window_sum -= col_sum[ix - 1];
-            let window_x = x_min + ix as i32;
-            check_and_push(&mut heap, collect_n, window_sum, window_x, window_z);
+            check_and_push(&mut heap, collect_n, window_sum, x_min + ix as i32, window_z);
         }
     }
 
-    // 从堆中提取候选，按 matched 降序排列
+    collect_results(heap, params, total)
+}
+
+/// 自定义图案搜索：流式行缓冲 + 逐窗口掩码匹配
+fn search_masked(params: &SearchParams) -> Vec<SearchResult> {
+    let x_min = params.origin_x - params.search_radius;
+    let x_max = params.origin_x + params.search_radius;
+    let z_min = params.origin_z - params.search_radius;
+    let z_max = params.origin_z + params.search_radius;
+
+    let width = (x_max - x_min + 1) as usize;
+    let height = (z_max - z_min + 1) as usize;
+    let pw = params.pattern_w as usize;
+    let ph = params.pattern_h as usize;
+    let total = params.required_count();
+
+    if pw > width || ph > height || total == 0 {
+        return Vec::new();
+    }
+
+    // 环形行缓冲区
+    let mut row_buf = vec![vec![false; width]; ph];
+    let mut heap: BinaryHeap<Reverse<(u32, i32, i32)>> = BinaryHeap::new();
+    let collect_n = params.top_n * 8;
+
+    for iz in 0..height {
+        let cz = z_min + iz as i32;
+        let buf_idx = iz % ph;
+
+        // 填充当前行
+        for ix in 0..width {
+            let cx = x_min + ix as i32;
+            row_buf[buf_idx][ix] = is_slime_chunk(params.seed, cx, cz);
+        }
+
+        if iz + 1 < ph { continue; }
+
+        let window_z = z_min + (iz + 1 - ph) as i32;
+        // 窗口最老行在 row_buf 中的起始索引
+        let base_buf = (iz + 1 - ph) % ph;
+
+        // 遍历所有 x 窗口位置
+        for wx in 0..=(width - pw) {
+            let mut matched = 0u32;
+            for dz in 0..ph {
+                let row_idx = (base_buf + dz) % ph;
+                for dx in 0..pw {
+                    if params.is_required(dx, dz) && row_buf[row_idx][wx + dx] {
+                        matched += 1;
+                    }
+                }
+            }
+            check_and_push(&mut heap, collect_n, matched, x_min + wx as i32, window_z);
+        }
+    }
+
+    collect_results(heap, params, total)
+}
+
+/// 从堆中提取候选并去重
+fn collect_results(
+    mut heap: BinaryHeap<Reverse<(u32, i32, i32)>>,
+    params: &SearchParams,
+    total: u32,
+) -> Vec<SearchResult> {
+    let pw = params.pattern_w as usize;
+    let ph = params.pattern_h as usize;
+
     let mut candidates: Vec<(u32, i32, i32)> = Vec::with_capacity(heap.len());
     while let Some(Reverse(item)) = heap.pop() {
         candidates.push(item);
     }
-    candidates.reverse(); // 降序
+    candidates.reverse();
 
-    // 贪心去重：如果两个结果的矩形重叠，只保留得分更高的
     let mut results: Vec<SearchResult> = Vec::new();
     for &(matched, cx, cz) in &candidates {
         let overlaps = results.iter().any(|r| {
@@ -141,6 +192,7 @@ mod tests {
             pattern_w: 1,
             pattern_h: 1,
             top_n: 10,
+            pattern_mask: None,
         };
         let results = search(&params);
         assert!(!results.is_empty(), "Should find slime chunks");
@@ -158,6 +210,7 @@ mod tests {
             pattern_w: 2,
             pattern_h: 2,
             top_n: 5,
+            pattern_mask: None,
         };
         let results = search(&params);
         assert!(!results.is_empty());
@@ -177,6 +230,7 @@ mod tests {
             pattern_w: 3,
             pattern_h: 3,
             top_n: 10,
+            pattern_mask: None,
         };
         let results = search(&params);
         assert!(results.len() <= 10);
@@ -196,6 +250,7 @@ mod tests {
             pattern_w: 100,
             pattern_h: 100,
             top_n: 10,
+            pattern_mask: None,
         };
         let results = search(&params);
         assert!(results.is_empty());
@@ -203,7 +258,6 @@ mod tests {
 
     #[test]
     fn test_search_large_radius() {
-        // 验证大半径不会 panic（流式算法）
         let params = SearchParams {
             seed: 0,
             origin_x: 0,
@@ -212,9 +266,73 @@ mod tests {
             pattern_w: 3,
             pattern_h: 3,
             top_n: 5,
+            pattern_mask: None,
         };
         let results = search(&params);
         assert!(!results.is_empty());
         assert!(results.len() <= 5);
+    }
+
+    #[test]
+    fn test_search_masked_cross() {
+        // 十字形图案 3x3:
+        // .X.
+        // XXX
+        // .X.
+        let mask = vec![
+            false, true, false,
+            true,  true, true,
+            false, true, false,
+        ];
+        let params = SearchParams {
+            seed: 12345,
+            origin_x: 0,
+            origin_z: 0,
+            search_radius: 100,
+            pattern_w: 3,
+            pattern_h: 3,
+            top_n: 5,
+            pattern_mask: Some(mask),
+        };
+        let results = search(&params);
+        assert!(!results.is_empty());
+        for r in &results {
+            assert_eq!(r.total, 5); // 十字形有 5 个 required
+            assert!(r.matched <= 5);
+        }
+    }
+
+    #[test]
+    fn test_search_masked_matches_full_when_all_true() {
+        // 全 true 的 mask 应该和无 mask 结果一致
+        let mask = vec![true; 4];
+        let params_masked = SearchParams {
+            seed: 0,
+            origin_x: 0,
+            origin_z: 0,
+            search_radius: 50,
+            pattern_w: 2,
+            pattern_h: 2,
+            top_n: 5,
+            pattern_mask: Some(mask),
+        };
+        let params_full = SearchParams {
+            seed: 0,
+            origin_x: 0,
+            origin_z: 0,
+            search_radius: 50,
+            pattern_w: 2,
+            pattern_h: 2,
+            top_n: 5,
+            pattern_mask: None,
+        };
+        let r_masked = search(&params_masked);
+        let r_full = search(&params_full);
+        assert_eq!(r_masked.len(), r_full.len());
+        for (a, b) in r_masked.iter().zip(r_full.iter()) {
+            assert_eq!(a.chunk_x, b.chunk_x);
+            assert_eq!(a.chunk_z, b.chunk_z);
+            assert_eq!(a.matched, b.matched);
+        }
     }
 }

@@ -308,6 +308,59 @@
             border-radius: 2px;
         }
 
+        /* Pattern editor */
+        .advanced-toggle {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            color: #7e838c;
+            margin-bottom: 10px;
+            user-select: none;
+        }
+        .advanced-toggle:hover { color: #b0b4ba; }
+        .advanced-toggle .arrow {
+            font-size: 10px;
+            transition: transform 0.15s;
+        }
+        .advanced-toggle .arrow.open { transform: rotate(90deg); }
+        .pattern-editor {
+            margin-bottom: 10px;
+        }
+        .pattern-grid {
+            display: inline-grid;
+            gap: 2px;
+            margin-top: 6px;
+        }
+        .pattern-cell {
+            width: 28px;
+            height: 28px;
+            border-radius: 4px;
+            border: 1px solid #2b2d31;
+            cursor: pointer;
+            transition: background 0.1s;
+        }
+        .pattern-cell.off { background: #1b1d1f; }
+        .pattern-cell.on { background: #46a758; }
+        .pattern-cell:hover { border-color: #4e535b; }
+        .pattern-actions {
+            display: flex;
+            gap: 6px;
+            margin-top: 6px;
+        }
+        .pattern-actions button {
+            background: #212225;
+            border: 1px solid #2b2d31;
+            color: #b0b4ba;
+            border-radius: 4px;
+            padding: 4px 10px;
+            font-size: 11px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .pattern-actions button:hover { background: #2b2d31; color: #edeef0; }
+
         /* Status bar */
         .status-bar {
             background: #18191b;
@@ -360,6 +413,18 @@
                     <div class="form-group">
                         <label>返回数</label>
                         <input type="number" id="top" value="" min="1" max="100" placeholder="自动">
+                    </div>
+                </div>
+                <div class="advanced-toggle" onclick="toggleAdvanced()">
+                    <span class="arrow" id="advArrow">▶</span>
+                    <span>自定义图案</span>
+                </div>
+                <div class="pattern-editor" id="patternEditor" style="display:none">
+                    <div class="pattern-grid" id="patternGrid"></div>
+                    <div class="pattern-actions">
+                        <button onclick="fillPattern()">全选</button>
+                        <button onclick="clearPattern()">清空</button>
+                        <button onclick="invertPattern()">反转</button>
                     </div>
                 </div>
                 <button class="btn-primary" id="searchBtn" onclick="doSearch()" disabled>加载中…</button>
@@ -453,6 +518,62 @@
             centerCx: 0, centerCz: 0,
             hoverChunkX: null, hoverChunkZ: null,
         };
+
+        // Pattern editor state
+        let patternMask = null; // null = full rect, array of bools when custom
+        let advancedOpen = false;
+
+        window.toggleAdvanced = function() {
+            advancedOpen = !advancedOpen;
+            document.getElementById('patternEditor').style.display = advancedOpen ? 'block' : 'none';
+            document.getElementById('advArrow').classList.toggle('open', advancedOpen);
+            if (advancedOpen) rebuildPatternGrid();
+        };
+
+        function rebuildPatternGrid() {
+            const pw = parseInt(document.getElementById('width').value) || 3;
+            const ph = parseInt(document.getElementById('height').value) || 3;
+            const grid = document.getElementById('patternGrid');
+            grid.style.gridTemplateColumns = `repeat(${pw}, 28px)`;
+
+            // Preserve existing mask if same size, otherwise reset to all-on
+            if (!patternMask || patternMask.length !== pw * ph) {
+                patternMask = new Array(pw * ph).fill(true);
+            }
+
+            grid.innerHTML = '';
+            for (let i = 0; i < pw * ph; i++) {
+                const cell = document.createElement('div');
+                cell.className = `pattern-cell ${patternMask[i] ? 'on' : 'off'}`;
+                cell.dataset.idx = i;
+                cell.addEventListener('click', () => {
+                    patternMask[i] = !patternMask[i];
+                    cell.className = `pattern-cell ${patternMask[i] ? 'on' : 'off'}`;
+                });
+                grid.appendChild(cell);
+            }
+        }
+
+        window.fillPattern = function() {
+            if (patternMask) patternMask.fill(true);
+            rebuildPatternGrid();
+        };
+        window.clearPattern = function() {
+            if (patternMask) patternMask.fill(false);
+            rebuildPatternGrid();
+        };
+        window.invertPattern = function() {
+            if (patternMask) patternMask = patternMask.map(v => !v);
+            rebuildPatternGrid();
+        };
+
+        // Rebuild grid when width/height changes
+        document.getElementById('width').addEventListener('change', () => {
+            if (advancedOpen) { patternMask = null; rebuildPatternGrid(); }
+        });
+        document.getElementById('height').addEventListener('change', () => {
+            if (advancedOpen) { patternMask = null; rebuildPatternGrid(); }
+        });
 
         const canvas = document.getElementById('mapCanvas');
         const ctx = canvas.getContext('2d');
@@ -548,6 +669,13 @@
             mapState._searchOx = ox;
             mapState._searchOz = oz;
 
+            // Build pattern_mask if advanced mode is on and not all-true
+            let mask = null;
+            if (advancedOpen && patternMask && patternMask.length === pw * ph) {
+                const allTrue = patternMask.every(v => v);
+                if (!allTrue) mask = patternMask;
+            }
+
             const params = {
                 seed: seed.str,
                 origin_x: ox,
@@ -557,6 +685,7 @@
                 pattern_h: ph,
                 top_n: topN,
             };
+            if (mask) params.pattern_mask = mask;
 
             document.getElementById('searchBtn').disabled = true;
             document.getElementById('searchBtn').textContent = '搜索中…';
@@ -582,7 +711,9 @@
             const oz = mapState._searchOz || 0;
 
             mapState.results = results || [];
-            showResults(mapState.results, pw * ph, elapsed);
+            // total comes from results (respects mask), fallback to pw*ph
+            const total = (mapState.results.length > 0) ? mapState.results[0].total : pw * ph;
+            showResults(mapState.results, total, elapsed);
 
             if (mapState.results.length > 0) {
                 mapState.activeResult = 0;
