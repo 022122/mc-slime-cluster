@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MC Slime Cluster Finder</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: #1a1a2e;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            color: #7ec850;
+            font-size: 1.8em;
+            margin: 20px 0;
+        }
+        h1 span { color: #5a5; }
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 30px;
+            font-size: 0.9em;
+        }
+        .panel {
+            background: #16213e;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            border: 1px solid #1a1a4e;
+        }
+        .panel h2 {
+            color: #7ec850;
+            font-size: 1.1em;
+            margin-bottom: 16px;
+        }
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+        .form-group.full { grid-column: 1 / -1; }
+        label {
+            font-size: 0.85em;
+            color: #aaa;
+            margin-bottom: 4px;
+        }
+        input {
+            background: #0f3460;
+            border: 1px solid #1a1a4e;
+            border-radius: 6px;
+            padding: 10px 12px;
+            color: #e0e0e0;
+            font-size: 1em;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        input:focus { border-color: #7ec850; }
+        input::placeholder { color: #555; }
+        button {
+            background: #7ec850;
+            color: #1a1a2e;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 24px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            width: 100%;
+            margin-top: 8px;
+        }
+        button:hover { background: #6ab840; }
+        button:disabled {
+            background: #444;
+            cursor: not-allowed;
+        }
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .results-table th {
+            text-align: left;
+            padding: 10px 12px;
+            border-bottom: 2px solid #1a1a4e;
+            color: #7ec850;
+            font-size: 0.85em;
+        }
+        .results-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #1a1a4e;
+            font-family: 'Consolas', 'Courier New', monospace;
+        }
+        .results-table tr:hover { background: #1a2a4e; }
+        .perfect { color: #7ec850; font-weight: bold; }
+        .good { color: #c8c850; }
+        .bar-bg {
+            background: #0f3460;
+            border-radius: 4px;
+            height: 8px;
+            width: 100%;
+            overflow: hidden;
+        }
+        .bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+        .status {
+            text-align: center;
+            padding: 20px;
+            color: #888;
+        }
+        .status.loading { color: #c8c850; }
+        .status.error { color: #e85050; }
+        .elapsed {
+            text-align: right;
+            color: #666;
+            font-size: 0.85em;
+            margin-top: 8px;
+        }
+        @media (max-width: 600px) {
+            .form-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🟢 MC <span>Slime Cluster</span> Finder</h1>
+        <p class="subtitle">Minecraft 史莱姆区块多联结构搜索器 · Java Edition 全版本</p>
+
+        <div class="panel">
+            <h2>🔍 搜索参数</h2>
+            <div class="form-grid">
+                <div class="form-group full">
+                    <label for="seed">世界种子</label>
+                    <input type="text" id="seed" placeholder="例如: 12345 或 -98765" value="0">
+                </div>
+                <div class="form-group">
+                    <label for="ox">原点区块 X</label>
+                    <input type="number" id="ox" value="0">
+                </div>
+                <div class="form-group">
+                    <label for="oz">原点区块 Z</label>
+                    <input type="number" id="oz" value="0">
+                </div>
+                <div class="form-group">
+                    <label for="radius">搜索半径（区块）</label>
+                    <input type="number" id="radius" value="200" min="1" max="10000">
+                </div>
+                <div class="form-group">
+                    <label for="top">返回数量</label>
+                    <input type="number" id="top" value="10" min="1" max="100">
+                </div>
+                <div class="form-group">
+                    <label for="width">结构宽度（区块）</label>
+                    <input type="number" id="width" value="3" min="1" max="20">
+                </div>
+                <div class="form-group">
+                    <label for="height">结构高度（区块）</label>
+                    <input type="number" id="height" value="3" min="1" max="20">
+                </div>
+                <div class="form-group full">
+                    <button id="searchBtn" onclick="doSearch()" disabled>加载 WASM 中...</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel" id="resultsPanel" style="display:none;">
+            <h2>📊 搜索结果</h2>
+            <div id="resultsContent"></div>
+            <div class="elapsed" id="elapsed"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import init, { search_slime_chunks } from './pkg/slime_search.js';
+
+        let wasmReady = false;
+
+        async function loadWasm() {
+            try {
+                await init();
+                wasmReady = true;
+                const btn = document.getElementById('searchBtn');
+                btn.disabled = false;
+                btn.textContent = '🔍 开始搜索';
+            } catch (e) {
+                document.getElementById('searchBtn').textContent = 'WASM 加载失败';
+                console.error('WASM init failed:', e);
+            }
+        }
+
+        window.doSearch = function() {
+            if (!wasmReady) return;
+
+            const btn = document.getElementById('searchBtn');
+            btn.disabled = true;
+            btn.textContent = '搜索中...';
+
+            // 使用 setTimeout 让 UI 更新
+            setTimeout(() => {
+                try {
+                    const seedStr = document.getElementById('seed').value.trim();
+                    const seed = BigInt(seedStr);
+                    // 转为有符号 64-bit
+                    const seedI64 = BigInt.asIntN(64, seed);
+
+                    const params = {
+                        seed: seedI64.toString(),
+                        origin_x: parseInt(document.getElementById('ox').value) || 0,
+                        origin_z: parseInt(document.getElementById('oz').value) || 0,
+                        search_radius: parseInt(document.getElementById('radius').value) || 200,
+                        pattern_w: parseInt(document.getElementById('width').value) || 3,
+                        pattern_h: parseInt(document.getElementById('height').value) || 3,
+                        top_n: parseInt(document.getElementById('top').value) || 10,
+                    };
+
+                    const start = performance.now();
+                    const resultJson = search_slime_chunks(JSON.stringify(params));
+                    const elapsed = performance.now() - start;
+                    const data = JSON.parse(resultJson);
+
+                    if (data.error) {
+                        showError(data.error);
+                    } else {
+                        showResults(data.results, params.pattern_w * params.pattern_h, elapsed);
+                    }
+                } catch (e) {
+                    showError(e.message);
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = '🔍 开始搜索';
+                }
+            }, 10);
+        };
+
+        function showResults(results, total, elapsed) {
+            const panel = document.getElementById('resultsPanel');
+            const content = document.getElementById('resultsContent');
+            panel.style.display = 'block';
+
+            if (!results || results.length === 0) {
+                content.innerHTML = '<div class="status">未找到任何结果</div>';
+                return;
+            }
+
+            let html = `<table class="results-table">
+                <thead><tr>
+                    <th>排名</th><th>区块坐标</th><th>匹配</th><th>匹配率</th><th></th>
+                </tr></thead><tbody>`;
+
+            results.forEach((r, i) => {
+                const pct = (r.matched / total * 100).toFixed(1);
+                const isPerfect = r.matched === total;
+                const cls = isPerfect ? 'perfect' : (pct >= 70 ? 'good' : '');
+                const color = isPerfect ? '#7ec850' : (pct >= 70 ? '#c8c850' : '#e85050');
+                const star = isPerfect ? ' ★' : '';
+
+                html += `<tr>
+                    <td>${i + 1}</td>
+                    <td>(${r.chunk_x}, ${r.chunk_z})</td>
+                    <td class="${cls}">${r.matched}/${total}${star}</td>
+                    <td>${pct}%</td>
+                    <td><div class="bar-bg"><div class="bar-fill" style="width:${pct}%;background:${color}"></div></div></td>
+                </tr>`;
+            });
+
+            html += '</tbody></table>';
+            content.innerHTML = html;
+            document.getElementById('elapsed').textContent = `耗时: ${elapsed.toFixed(1)}ms`;
+        }
+
+        function showError(msg) {
+            const panel = document.getElementById('resultsPanel');
+            const content = document.getElementById('resultsContent');
+            panel.style.display = 'block';
+            content.innerHTML = `<div class="status error">❌ ${msg}</div>`;
+        }
+
+        loadWasm();
+    </script>
+</body>
+</html>

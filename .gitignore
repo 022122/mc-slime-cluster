@@ -2,6 +2,9 @@
 /target/
 Cargo.lock
 
+# WASM 构建产物（由 wasm-pack 生成，可重新构建）
+/pkg/
+
 # 计划阶段文件
 .spec-workflow/
 docs/
