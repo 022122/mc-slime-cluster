@@ -5,10 +5,11 @@ use std::cmp::Reverse;
 
 /// 执行多联结构史莱姆区块搜索
 ///
-/// 算法：
-/// 1. 预计算搜索范围内所有区块的史莱姆状态
-/// 2. 构建二维前缀和数组
-/// 3. 滑动窗口遍历，用最小堆维护 Top-N 结果
+/// 流式算法（内存 O(width × pattern_h)，不再需要 O(width × height)）：
+/// 1. 逐行扫描 Z 方向
+/// 2. 维护列累加数组 col_sum[x]（最近 H 行的史莱姆数）
+/// 3. 对 col_sum 做宽度 W 的滑动窗口求和
+/// 4. 最小堆维护 Top-N
 pub fn search(params: &SearchParams) -> Vec<SearchResult> {
     let x_min = params.origin_x - params.search_radius;
     let x_max = params.origin_x + params.search_radius;
@@ -17,67 +18,61 @@ pub fn search(params: &SearchParams) -> Vec<SearchResult> {
 
     let width = (x_max - x_min + 1) as usize;
     let height = (z_max - z_min + 1) as usize;
-    let pw_pattern = params.pattern_w as usize;
-    let ph_pattern = params.pattern_h as usize;
+    let pw = params.pattern_w as usize;
+    let ph = params.pattern_h as usize;
     let total = params.pattern_w * params.pattern_h;
 
-    if pw_pattern > width || ph_pattern > height {
+    if pw > width || ph > height {
         return Vec::new();
     }
 
-    // Step 1: 预计算史莱姆位图
-    let mut bitmap = vec![0u32; width * height];
-    for iz in 0..height {
-        for ix in 0..width {
-            let cx = x_min + ix as i32;
-            let cz = z_min + iz as i32;
-            if is_slime_chunk(params.seed, cx, cz) {
-                bitmap[iz * width + ix] = 1;
-            }
-        }
-    }
+    // col_sum[x] = 最近 ph 行中，列 x 的史莱姆区块数
+    let mut col_sum = vec![0u32; width];
 
-    // Step 2: 构建二维前缀和 (大小 (height+1) x (width+1))
-    let pw = width + 1;
-    let ph = height + 1;
-    let mut prefix = vec![0u32; ph * pw];
+    // 环形缓冲区，存储最近 ph 行的史莱姆数据
+    // row_buf[row_idx % ph][x] = 该行该列是否为史莱姆区块
+    let mut row_buf = vec![vec![0u32; width]; ph];
 
-    for iz in 1..ph {
-        for ix in 1..pw {
-            prefix[iz * pw + ix] = bitmap[(iz - 1) * width + (ix - 1)]
-                + prefix[(iz - 1) * pw + ix]
-                + prefix[iz * pw + (ix - 1)]
-                - prefix[(iz - 1) * pw + (ix - 1)];
-        }
-    }
-
-    // 查询矩形 [x1, x2) x [z1, z2) 内的史莱姆区块数（基于 0-indexed bitmap 坐标）
-    let rect_sum = |x1: usize, z1: usize, x2: usize, z2: usize| -> u32 {
-        prefix[z2 * pw + x2] + prefix[z1 * pw + x1]
-            - prefix[z1 * pw + x2]
-            - prefix[z2 * pw + x1]
-    };
-
-    // Step 3: 滑动窗口 + 最小堆维护 Top-N
+    // 最小堆维护 Top-N
     let mut heap: BinaryHeap<Reverse<(u32, i32, i32)>> = BinaryHeap::new();
 
-    let max_ix = width - pw_pattern;
-    let max_iz = height - ph_pattern;
+    for iz in 0..height {
+        let cz = z_min + iz as i32;
+        let buf_idx = iz % ph;
 
-    for iz in 0..=max_iz {
-        for ix in 0..=max_ix {
-            let matched = rect_sum(ix, iz, ix + pw_pattern, iz + ph_pattern);
+        // 计算当前行的史莱姆数据
+        for ix in 0..width {
             let cx = x_min + ix as i32;
-            let cz = z_min + iz as i32;
+            let val = if is_slime_chunk(params.seed, cx, cz) { 1u32 } else { 0 };
 
-            if heap.len() < params.top_n {
-                heap.push(Reverse((matched, cx, cz)));
-            } else if let Some(&Reverse((min_matched, _, _))) = heap.peek() {
-                if matched > min_matched {
-                    heap.pop();
-                    heap.push(Reverse((matched, cx, cz)));
-                }
-            }
+            // 从 col_sum 中减去即将被覆盖的旧行数据
+            col_sum[ix] -= row_buf[buf_idx][ix];
+            // 写入新数据
+            row_buf[buf_idx][ix] = val;
+            // 加上新行数据
+            col_sum[ix] += val;
+        }
+
+        // 只有积累了 ph 行后才开始计算窗口
+        if iz + 1 < ph {
+            continue;
+        }
+
+        // 窗口起始 Z 坐标
+        let window_z = z_min + (iz + 1 - ph) as i32;
+
+        // 对 col_sum 做宽度 pw 的滑动窗口求和
+        let mut window_sum: u32 = col_sum[..pw].iter().sum();
+
+        // 检查第一个窗口位置
+        check_and_push(&mut heap, params.top_n, window_sum, x_min, window_z);
+
+        // 滑动窗口
+        for ix in 1..=(width - pw) {
+            window_sum += col_sum[ix + pw - 1];
+            window_sum -= col_sum[ix - 1];
+            let window_x = x_min + ix as i32;
+            check_and_push(&mut heap, params.top_n, window_sum, window_x, window_z);
         }
     }
 
@@ -91,9 +86,26 @@ pub fn search(params: &SearchParams) -> Vec<SearchResult> {
             total,
         });
     }
-    // heap.pop() 返回最小的，所以 results 是升序，需要反转
     results.reverse();
     results
+}
+
+#[inline]
+fn check_and_push(
+    heap: &mut BinaryHeap<Reverse<(u32, i32, i32)>>,
+    top_n: usize,
+    matched: u32,
+    cx: i32,
+    cz: i32,
+) {
+    if heap.len() < top_n {
+        heap.push(Reverse((matched, cx, cz)));
+    } else if let Some(&Reverse((min_matched, _, _))) = heap.peek() {
+        if matched > min_matched {
+            heap.pop();
+            heap.push(Reverse((matched, cx, cz)));
+        }
+    }
 }
 
 #[cfg(test)]
@@ -113,7 +125,6 @@ mod tests {
         };
         let results = search(&params);
         assert!(!results.is_empty(), "Should find slime chunks");
-        // 1x1 的完美匹配 = matched 1
         assert_eq!(results[0].matched, 1);
         assert_eq!(results[0].total, 1);
     }
@@ -132,7 +143,6 @@ mod tests {
         let results = search(&params);
         assert!(!results.is_empty());
         assert!(results.len() <= 5);
-        // 结果应按 matched 降序排列
         for i in 1..results.len() {
             assert!(results[i - 1].matched >= results[i].matched);
         }
@@ -170,5 +180,22 @@ mod tests {
         };
         let results = search(&params);
         assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_search_large_radius() {
+        // 验证大半径不会 panic（流式算法）
+        let params = SearchParams {
+            seed: 0,
+            origin_x: 0,
+            origin_z: 0,
+            search_radius: 1000,
+            pattern_w: 3,
+            pattern_h: 3,
+            top_n: 5,
+        };
+        let results = search(&params);
+        assert!(!results.is_empty());
+        assert!(results.len() <= 5);
     }
 }
