@@ -12,284 +12,672 @@
             color: #e0e0e0;
             min-height: 100vh;
         }
-        .container {
-            max-width: 900px;
-            margin: 0 auto;
-            padding: 20px;
+        .app {
+            display: flex;
+            height: 100vh;
+        }
+        .sidebar {
+            width: 320px;
+            min-width: 320px;
+            background: #16213e;
+            border-right: 1px solid #1a1a4e;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
         }
         h1 {
-            text-align: center;
             color: #7ec850;
-            font-size: 1.8em;
-            margin: 20px 0;
+            font-size: 1.3em;
+            text-align: center;
         }
         h1 span { color: #5a5; }
         .subtitle {
             text-align: center;
-            color: #888;
-            margin-bottom: 30px;
-            font-size: 0.9em;
+            color: #666;
+            font-size: 0.75em;
         }
-        .panel {
-            background: #16213e;
-            border-radius: 12px;
-            padding: 24px;
-            margin-bottom: 20px;
-            border: 1px solid #1a1a4e;
+        .section {
+            background: #0f3460;
+            border-radius: 8px;
+            padding: 12px;
         }
-        .panel h2 {
+        .section h3 {
             color: #7ec850;
-            font-size: 1.1em;
-            margin-bottom: 16px;
+            font-size: 0.85em;
+            margin-bottom: 8px;
         }
-        .form-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
+        .form-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
         }
         .form-group {
+            flex: 1;
             display: flex;
             flex-direction: column;
         }
-        .form-group.full { grid-column: 1 / -1; }
         label {
-            font-size: 0.85em;
-            color: #aaa;
-            margin-bottom: 4px;
+            font-size: 0.75em;
+            color: #888;
+            margin-bottom: 2px;
         }
         input {
-            background: #0f3460;
+            background: #1a1a2e;
             border: 1px solid #1a1a4e;
-            border-radius: 6px;
-            padding: 10px 12px;
+            border-radius: 4px;
+            padding: 6px 8px;
             color: #e0e0e0;
-            font-size: 1em;
+            font-size: 0.9em;
             outline: none;
-            transition: border-color 0.2s;
+            width: 100%;
         }
         input:focus { border-color: #7ec850; }
-        input::placeholder { color: #555; }
         button {
             background: #7ec850;
             color: #1a1a2e;
             border: none;
-            border-radius: 8px;
-            padding: 12px 24px;
-            font-size: 1em;
+            border-radius: 6px;
+            padding: 10px;
+            font-size: 0.9em;
             font-weight: 600;
             cursor: pointer;
-            transition: background 0.2s;
             width: 100%;
-            margin-top: 8px;
         }
         button:hover { background: #6ab840; }
-        button:disabled {
-            background: #444;
-            cursor: not-allowed;
+        button:disabled { background: #444; cursor: not-allowed; }
+        .results-list {
+            flex: 1;
+            overflow-y: auto;
         }
-        .results-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        .results-table th {
-            text-align: left;
-            padding: 10px 12px;
-            border-bottom: 2px solid #1a1a4e;
-            color: #7ec850;
-            font-size: 0.85em;
-        }
-        .results-table td {
-            padding: 8px 12px;
-            border-bottom: 1px solid #1a1a4e;
-            font-family: 'Consolas', 'Courier New', monospace;
-        }
-        .results-table tr:hover { background: #1a2a4e; }
-        .perfect { color: #7ec850; font-weight: bold; }
-        .good { color: #c8c850; }
-        .bar-bg {
-            background: #0f3460;
+        .result-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 8px;
             border-radius: 4px;
-            height: 8px;
-            width: 100%;
+            cursor: pointer;
+            font-size: 0.82em;
+            font-family: 'Consolas', monospace;
+        }
+        .result-item:hover { background: #1a2a4e; }
+        .result-item.active { background: #1a3a5e; border: 1px solid #7ec850; }
+        .result-rank {
+            color: #666;
+            min-width: 20px;
+        }
+        .result-coords { flex: 1; }
+        .result-score { color: #7ec850; font-weight: bold; }
+        .result-bar {
+            width: 50px;
+            height: 6px;
+            background: #1a1a2e;
+            border-radius: 3px;
             overflow: hidden;
         }
-        .bar-fill {
+        .result-bar-fill {
             height: 100%;
+            border-radius: 3px;
+        }
+        .map-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            cursor: grab;
+        }
+        .map-container:active { cursor: grabbing; }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        .map-info {
+            position: absolute;
+            bottom: 8px;
+            left: 8px;
+            background: rgba(22, 33, 62, 0.9);
+            padding: 4px 8px;
             border-radius: 4px;
-            transition: width 0.3s;
-        }
-        .status {
-            text-align: center;
-            padding: 20px;
+            font-size: 0.75em;
             color: #888;
+            pointer-events: none;
         }
-        .status.loading { color: #c8c850; }
-        .status.error { color: #e85050; }
-        .elapsed {
-            text-align: right;
+        .map-legend {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(22, 33, 62, 0.9);
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 0.75em;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 4px;
+        }
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
+        .status-bar {
+            background: #16213e;
+            border-top: 1px solid #1a1a4e;
+            padding: 4px 12px;
+            font-size: 0.75em;
             color: #666;
-            font-size: 0.85em;
-            margin-top: 8px;
+            display: flex;
+            justify-content: space-between;
         }
-        @media (max-width: 600px) {
-            .form-grid { grid-template-columns: 1fr; }
+        .zoom-controls {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
         }
+        .zoom-btn {
+            width: 32px;
+            height: 32px;
+            background: rgba(22, 33, 62, 0.9);
+            border: 1px solid #1a1a4e;
+            color: #e0e0e0;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1.2em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+        }
+        .zoom-btn:hover { background: #1a3a5e; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🟢 MC <span>Slime Cluster</span> Finder</h1>
-        <p class="subtitle">Minecraft 史莱姆区块多联结构搜索器 · Java Edition 全版本</p>
+    <div class="app">
+        <div class="sidebar">
+            <div>
+                <h1>🟢 MC <span>Slime</span> Finder</h1>
+                <p class="subtitle">Java Edition 全版本 · WASM 驱动</p>
+            </div>
 
-        <div class="panel">
-            <h2>🔍 搜索参数</h2>
-            <div class="form-grid">
-                <div class="form-group full">
-                    <label for="seed">世界种子</label>
-                    <input type="text" id="seed" placeholder="例如: 12345 或 -98765" value="0">
+            <div class="section">
+                <h3>🌍 世界设置</h3>
+                <div class="form-group" style="margin-bottom:8px">
+                    <label>种子</label>
+                    <input type="text" id="seed" value="0" placeholder="种子">
                 </div>
-                <div class="form-group">
-                    <label for="ox">原点区块 X</label>
-                    <input type="number" id="ox" value="0">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>中心 X（区块）</label>
+                        <input type="number" id="ox" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label>中心 Z（区块）</label>
+                        <input type="number" id="oz" value="0">
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label for="oz">原点区块 Z</label>
-                    <input type="number" id="oz" value="0">
+                <div class="form-group" style="margin-bottom:8px">
+                    <label>显示半径（区块）</label>
+                    <input type="number" id="radius" value="50" min="10" max="500">
                 </div>
-                <div class="form-group">
-                    <label for="radius">搜索半径（区块）</label>
-                    <input type="number" id="radius" value="200" min="1" max="10000">
+                <button id="renderBtn" onclick="renderMap()" disabled>加载中...</button>
+            </div>
+
+            <div class="section">
+                <h3>🔍 多联结构搜索</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>宽度</label>
+                        <input type="number" id="width" value="3" min="1" max="20">
+                    </div>
+                    <div class="form-group">
+                        <label>高度</label>
+                        <input type="number" id="height" value="3" min="1" max="20">
+                    </div>
+                    <div class="form-group">
+                        <label>数量</label>
+                        <input type="number" id="top" value="10" min="1" max="50">
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label for="top">返回数量</label>
-                    <input type="number" id="top" value="10" min="1" max="100">
-                </div>
-                <div class="form-group">
-                    <label for="width">结构宽度（区块）</label>
-                    <input type="number" id="width" value="3" min="1" max="20">
-                </div>
-                <div class="form-group">
-                    <label for="height">结构高度（区块）</label>
-                    <input type="number" id="height" value="3" min="1" max="20">
-                </div>
-                <div class="form-group full">
-                    <button id="searchBtn" onclick="doSearch()" disabled>加载 WASM 中...</button>
-                </div>
+                <button id="searchBtn" onclick="doSearch()" disabled>搜索</button>
+            </div>
+
+            <div class="section results-list" id="resultsPanel" style="display:none">
+                <h3>📊 搜索结果</h3>
+                <div id="resultsList"></div>
             </div>
         </div>
 
-        <div class="panel" id="resultsPanel" style="display:none;">
-            <h2>📊 搜索结果</h2>
-            <div id="resultsContent"></div>
-            <div class="elapsed" id="elapsed"></div>
+        <div class="main">
+            <div class="map-container" id="mapContainer">
+                <canvas id="mapCanvas"></canvas>
+                <div class="zoom-controls">
+                    <button class="zoom-btn" onclick="zoomIn()">+</button>
+                    <button class="zoom-btn" onclick="zoomOut()">−</button>
+                    <button class="zoom-btn" onclick="resetView()">⌂</button>
+                </div>
+                <div class="map-legend">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background:#7ec850"></div>
+                        <span>史莱姆区块</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background:#2a2a3e"></div>
+                        <span>普通区块</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background:rgba(255,200,0,0.4);border:1px solid #fc0"></div>
+                        <span>搜索结果高亮</span>
+                    </div>
+                </div>
+                <div class="map-info" id="mapInfo">移动鼠标查看区块坐标</div>
+            </div>
+            <div class="status-bar">
+                <span id="statusText">就绪</span>
+                <span id="statusTime"></span>
+            </div>
         </div>
     </div>
 
     <script type="module">
-        import init, { search_slime_chunks } from './pkg/slime_search.js';
+        import init, { search_slime_chunks, get_slime_bitmap } from './pkg/slime_search.js';
 
         let wasmReady = false;
+        let mapState = {
+            bitmap: null,
+            cx_min: 0, cz_min: 0,
+            width: 0, height: 0,
+            cellSize: 6,
+            offsetX: 0, offsetY: 0,
+            dragging: false,
+            dragStartX: 0, dragStartY: 0,
+            dragOffsetX: 0, dragOffsetY: 0,
+            results: [],
+            activeResult: -1,
+            patternW: 3, patternH: 3,
+        };
 
-        async function loadWasm() {
+        const canvas = document.getElementById('mapCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('mapContainer');
+
+        function resizeCanvas() {
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            drawMap();
+        }
+
+        function parseSeed() {
+            const s = document.getElementById('seed').value.trim();
             try {
-                await init();
-                wasmReady = true;
-                const btn = document.getElementById('searchBtn');
-                btn.disabled = false;
-                btn.textContent = '🔍 开始搜索';
-            } catch (e) {
-                document.getElementById('searchBtn').textContent = 'WASM 加载失败';
-                console.error('WASM init failed:', e);
+                const big = BigInt(s);
+                const signed = BigInt.asIntN(64, big);
+                const hi = Number(BigInt.asIntN(32, signed >> 32n));
+                const lo = Number(BigInt.asUintN(32, signed));
+                return { hi, lo, str: signed.toString() };
+            } catch {
+                return null;
             }
         }
 
+        window.renderMap = function() {
+            const seed = parseSeed();
+            if (!seed) { alert('种子格式无效'); return; }
+
+            const ox = parseInt(document.getElementById('ox').value) || 0;
+            const oz = parseInt(document.getElementById('oz').value) || 0;
+            const radius = parseInt(document.getElementById('radius').value) || 50;
+
+            const cx_min = ox - radius;
+            const cz_min = oz - radius;
+            const w = radius * 2 + 1;
+            const h = radius * 2 + 1;
+
+            const start = performance.now();
+            const bitmap = get_slime_bitmap(seed.hi, seed.lo, cx_min, cz_min, w, h);
+            const elapsed = performance.now() - start;
+
+            mapState.bitmap = bitmap;
+            mapState.cx_min = cx_min;
+            mapState.cz_min = cz_min;
+            mapState.width = w;
+            mapState.height = h;
+            mapState.results = [];
+            mapState.activeResult = -1;
+
+            // 自动计算 cellSize 使地图适应画布
+            const maxCellW = canvas.width / w;
+            const maxCellH = canvas.height / h;
+            mapState.cellSize = Math.max(2, Math.min(16, Math.floor(Math.min(maxCellW, maxCellH))));
+
+            // 居中
+            mapState.offsetX = (canvas.width - w * mapState.cellSize) / 2;
+            mapState.offsetY = (canvas.height - h * mapState.cellSize) / 2;
+
+            drawMap();
+            document.getElementById('statusText').textContent = `已渲染 ${w}×${h} = ${w*h} 区块`;
+            document.getElementById('statusTime').textContent = `${elapsed.toFixed(1)}ms`;
+            document.getElementById('resultsPanel').style.display = 'none';
+        };
+
         window.doSearch = function() {
-            if (!wasmReady) return;
+            const seed = parseSeed();
+            if (!seed) { alert('种子格式无效'); return; }
 
-            const btn = document.getElementById('searchBtn');
-            btn.disabled = true;
-            btn.textContent = '搜索中...';
+            const ox = parseInt(document.getElementById('ox').value) || 0;
+            const oz = parseInt(document.getElementById('oz').value) || 0;
+            const radius = parseInt(document.getElementById('radius').value) || 50;
+            const pw = parseInt(document.getElementById('width').value) || 3;
+            const ph = parseInt(document.getElementById('height').value) || 3;
+            const topN = parseInt(document.getElementById('top').value) || 10;
 
-            // 使用 setTimeout 让 UI 更新
-            setTimeout(() => {
-                try {
-                    const seedStr = document.getElementById('seed').value.trim();
-                    const seed = BigInt(seedStr);
-                    // 转为有符号 64-bit
-                    const seedI64 = BigInt.asIntN(64, seed);
+            mapState.patternW = pw;
+            mapState.patternH = ph;
 
-                    const params = {
-                        seed: seedI64.toString(),
-                        origin_x: parseInt(document.getElementById('ox').value) || 0,
-                        origin_z: parseInt(document.getElementById('oz').value) || 0,
-                        search_radius: parseInt(document.getElementById('radius').value) || 200,
-                        pattern_w: parseInt(document.getElementById('width').value) || 3,
-                        pattern_h: parseInt(document.getElementById('height').value) || 3,
-                        top_n: parseInt(document.getElementById('top').value) || 10,
-                    };
+            const params = {
+                seed: seed.str,
+                origin_x: ox,
+                origin_z: oz,
+                search_radius: radius,
+                pattern_w: pw,
+                pattern_h: ph,
+                top_n: topN,
+            };
 
-                    const start = performance.now();
-                    const resultJson = search_slime_chunks(JSON.stringify(params));
-                    const elapsed = performance.now() - start;
-                    const data = JSON.parse(resultJson);
+            const start = performance.now();
+            const resultJson = search_slime_chunks(JSON.stringify(params));
+            const elapsed = performance.now() - start;
+            const data = JSON.parse(resultJson);
 
-                    if (data.error) {
-                        showError(data.error);
-                    } else {
-                        showResults(data.results, params.pattern_w * params.pattern_h, elapsed);
-                    }
-                } catch (e) {
-                    showError(e.message);
-                } finally {
-                    btn.disabled = false;
-                    btn.textContent = '🔍 开始搜索';
-                }
-            }, 10);
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+
+            mapState.results = data.results || [];
+            mapState.activeResult = mapState.results.length > 0 ? 0 : -1;
+
+            showResults(mapState.results, pw * ph, elapsed);
+
+            // 如果还没渲染地图，先渲染
+            if (!mapState.bitmap) {
+                renderMap();
+            }
+            drawMap();
         };
 
         function showResults(results, total, elapsed) {
             const panel = document.getElementById('resultsPanel');
-            const content = document.getElementById('resultsContent');
+            const list = document.getElementById('resultsList');
             panel.style.display = 'block';
 
-            if (!results || results.length === 0) {
-                content.innerHTML = '<div class="status">未找到任何结果</div>';
+            document.getElementById('statusText').textContent = `找到 ${results.length} 个结果`;
+            document.getElementById('statusTime').textContent = `${elapsed.toFixed(1)}ms`;
+
+            if (!results.length) {
+                list.innerHTML = '<div style="color:#666;padding:8px;text-align:center">未找到结果</div>';
                 return;
             }
 
-            let html = `<table class="results-table">
-                <thead><tr>
-                    <th>排名</th><th>区块坐标</th><th>匹配</th><th>匹配率</th><th></th>
-                </tr></thead><tbody>`;
+            list.innerHTML = results.map((r, i) => {
+                const pct = (r.matched / total * 100).toFixed(0);
+                const color = r.matched === total ? '#7ec850' : (pct >= 70 ? '#c8c850' : '#e85050');
+                const star = r.matched === total ? ' ★' : '';
+                return `<div class="result-item ${i === 0 ? 'active' : ''}" onclick="selectResult(${i})" data-idx="${i}">
+                    <span class="result-rank">#${i+1}</span>
+                    <span class="result-coords">(${r.chunk_x}, ${r.chunk_z})</span>
+                    <span class="result-score">${r.matched}/${total}${star}</span>
+                    <div class="result-bar"><div class="result-bar-fill" style="width:${pct}%;background:${color}"></div></div>
+                </div>`;
+            }).join('');
+        }
 
-            results.forEach((r, i) => {
-                const pct = (r.matched / total * 100).toFixed(1);
-                const isPerfect = r.matched === total;
-                const cls = isPerfect ? 'perfect' : (pct >= 70 ? 'good' : '');
-                const color = isPerfect ? '#7ec850' : (pct >= 70 ? '#c8c850' : '#e85050');
-                const star = isPerfect ? ' ★' : '';
-
-                html += `<tr>
-                    <td>${i + 1}</td>
-                    <td>(${r.chunk_x}, ${r.chunk_z})</td>
-                    <td class="${cls}">${r.matched}/${total}${star}</td>
-                    <td>${pct}%</td>
-                    <td><div class="bar-bg"><div class="bar-fill" style="width:${pct}%;background:${color}"></div></div></td>
-                </tr>`;
+        window.selectResult = function(idx) {
+            mapState.activeResult = idx;
+            document.querySelectorAll('.result-item').forEach((el, i) => {
+                el.classList.toggle('active', i === idx);
             });
 
-            html += '</tbody></table>';
-            content.innerHTML = html;
-            document.getElementById('elapsed').textContent = `耗时: ${elapsed.toFixed(1)}ms`;
+            // 将地图中心移到该结果
+            const r = mapState.results[idx];
+            if (r && mapState.bitmap) {
+                const mapCx = (r.chunk_x - mapState.cx_min + mapState.patternW / 2) * mapState.cellSize;
+                const mapCz = (r.chunk_z - mapState.cz_min + mapState.patternH / 2) * mapState.cellSize;
+                mapState.offsetX = canvas.width / 2 - mapCx;
+                mapState.offsetY = canvas.height / 2 - mapCz;
+            }
+            drawMap();
+        };
+
+        function drawMap() {
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            if (!mapState.bitmap) return;
+
+            const { bitmap, cx_min, cz_min, width, height, cellSize, offsetX, offsetY } = mapState;
+
+            // 计算可见范围
+            const startX = Math.max(0, Math.floor(-offsetX / cellSize));
+            const startZ = Math.max(0, Math.floor(-offsetY / cellSize));
+            const endX = Math.min(width, Math.ceil((canvas.width - offsetX) / cellSize));
+            const endZ = Math.min(height, Math.ceil((canvas.height - offsetY) / cellSize));
+
+            // 绘制区块
+            for (let iz = startZ; iz < endZ; iz++) {
+                for (let ix = startX; ix < endX; ix++) {
+                    const isSlime = bitmap[iz * width + ix];
+                    const px = offsetX + ix * cellSize;
+                    const pz = offsetY + iz * cellSize;
+
+                    if (isSlime) {
+                        ctx.fillStyle = '#7ec850';
+                    } else {
+                        ctx.fillStyle = '#2a2a3e';
+                    }
+                    ctx.fillRect(px, pz, cellSize - 0.5, cellSize - 0.5);
+                }
+            }
+
+            // 绘制网格线（仅在 cellSize >= 8 时）
+            if (cellSize >= 8) {
+                ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+                ctx.lineWidth = 0.5;
+                for (let ix = startX; ix <= endX; ix++) {
+                    const px = offsetX + ix * cellSize;
+                    ctx.beginPath();
+                    ctx.moveTo(px, offsetY + startZ * cellSize);
+                    ctx.lineTo(px, offsetY + endZ * cellSize);
+                    ctx.stroke();
+                }
+                for (let iz = startZ; iz <= endZ; iz++) {
+                    const pz = offsetY + iz * cellSize;
+                    ctx.beginPath();
+                    ctx.moveTo(offsetX + startX * cellSize, pz);
+                    ctx.lineTo(offsetX + endX * cellSize, pz);
+                    ctx.stroke();
+                }
+            }
+
+            // 绘制原点十字
+            const originIx = (parseInt(document.getElementById('ox').value) || 0) - cx_min;
+            const originIz = (parseInt(document.getElementById('oz').value) || 0) - cz_min;
+            const opx = offsetX + originIx * cellSize + cellSize / 2;
+            const opz = offsetY + originIz * cellSize + cellSize / 2;
+            ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(opx, 0);
+            ctx.lineTo(opx, canvas.height);
+            ctx.moveTo(0, opz);
+            ctx.lineTo(canvas.width, opz);
+            ctx.stroke();
+
+            // 绘制搜索结果高亮
+            if (mapState.results.length > 0) {
+                const pw = mapState.patternW;
+                const ph = mapState.patternH;
+
+                // 先画所有结果（半透明）
+                mapState.results.forEach((r, i) => {
+                    const rx = r.chunk_x - cx_min;
+                    const rz = r.chunk_z - cz_min;
+                    const px = offsetX + rx * cellSize;
+                    const pz = offsetY + rz * cellSize;
+
+                    if (i === mapState.activeResult) return; // 活跃的后画
+
+                    ctx.strokeStyle = 'rgba(255, 200, 0, 0.3)';
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(px, pz, pw * cellSize, ph * cellSize);
+                });
+
+                // 画活跃结果（高亮）
+                if (mapState.activeResult >= 0) {
+                    const r = mapState.results[mapState.activeResult];
+                    const rx = r.chunk_x - cx_min;
+                    const rz = r.chunk_z - cz_min;
+                    const px = offsetX + rx * cellSize;
+                    const pz = offsetY + rz * cellSize;
+
+                    ctx.fillStyle = 'rgba(255, 200, 0, 0.15)';
+                    ctx.fillRect(px, pz, pw * cellSize, ph * cellSize);
+                    ctx.strokeStyle = '#ffcc00';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(px, pz, pw * cellSize, ph * cellSize);
+
+                    // 标注编号
+                    if (cellSize >= 4) {
+                        ctx.fillStyle = '#ffcc00';
+                        ctx.font = `bold ${Math.max(10, cellSize)}px sans-serif`;
+                        ctx.fillText(`#${mapState.activeResult + 1}`, px + 2, pz - 4);
+                    }
+                }
+            }
         }
 
-        function showError(msg) {
-            const panel = document.getElementById('resultsPanel');
-            const content = document.getElementById('resultsContent');
-            panel.style.display = 'block';
-            content.innerHTML = `<div class="status error">❌ ${msg}</div>`;
+        // 鼠标拖拽
+        container.addEventListener('mousedown', (e) => {
+            mapState.dragging = true;
+            mapState.dragStartX = e.clientX;
+            mapState.dragStartY = e.clientY;
+            mapState.dragOffsetX = mapState.offsetX;
+            mapState.dragOffsetY = mapState.offsetY;
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (mapState.dragging) {
+                mapState.offsetX = mapState.dragOffsetX + (e.clientX - mapState.dragStartX);
+                mapState.offsetY = mapState.dragOffsetY + (e.clientY - mapState.dragStartY);
+                drawMap();
+            }
+
+            // 更新坐标信息
+            if (mapState.bitmap) {
+                const rect = canvas.getBoundingClientRect();
+                const mx = e.clientX - rect.left;
+                const my = e.clientY - rect.top;
+                const ix = Math.floor((mx - mapState.offsetX) / mapState.cellSize);
+                const iz = Math.floor((my - mapState.offsetY) / mapState.cellSize);
+                const cx = mapState.cx_min + ix;
+                const cz = mapState.cz_min + iz;
+                const isSlime = (ix >= 0 && ix < mapState.width && iz >= 0 && iz < mapState.height)
+                    ? mapState.bitmap[iz * mapState.width + ix] : 0;
+                document.getElementById('mapInfo').textContent =
+                    `区块 (${cx}, ${cz}) · 方块 (${cx*16}~${cx*16+15}, ${cz*16}~${cz*16+15})${isSlime ? ' · 🟢 史莱姆区块' : ''}`;
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            mapState.dragging = false;
+        });
+
+        // 滚轮缩放
+        container.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+
+            const oldSize = mapState.cellSize;
+            if (e.deltaY < 0) {
+                mapState.cellSize = Math.min(32, mapState.cellSize + 1);
+            } else {
+                mapState.cellSize = Math.max(1, mapState.cellSize - 1);
+            }
+
+            // 以鼠标位置为中心缩放
+            const scale = mapState.cellSize / oldSize;
+            mapState.offsetX = mx - (mx - mapState.offsetX) * scale;
+            mapState.offsetY = my - (my - mapState.offsetY) * scale;
+
+            drawMap();
+        }, { passive: false });
+
+        window.zoomIn = function() {
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            const oldSize = mapState.cellSize;
+            mapState.cellSize = Math.min(32, mapState.cellSize + 2);
+            const scale = mapState.cellSize / oldSize;
+            mapState.offsetX = cx - (cx - mapState.offsetX) * scale;
+            mapState.offsetY = cy - (cy - mapState.offsetY) * scale;
+            drawMap();
+        };
+
+        window.zoomOut = function() {
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            const oldSize = mapState.cellSize;
+            mapState.cellSize = Math.max(1, mapState.cellSize - 2);
+            const scale = mapState.cellSize / oldSize;
+            mapState.offsetX = cx - (cx - mapState.offsetX) * scale;
+            mapState.offsetY = cy - (cy - mapState.offsetY) * scale;
+            drawMap();
+        };
+
+        window.resetView = function() {
+            if (!mapState.bitmap) return;
+            const maxCellW = canvas.width / mapState.width;
+            const maxCellH = canvas.height / mapState.height;
+            mapState.cellSize = Math.max(2, Math.min(16, Math.floor(Math.min(maxCellW, maxCellH))));
+            mapState.offsetX = (canvas.width - mapState.width * mapState.cellSize) / 2;
+            mapState.offsetY = (canvas.height - mapState.height * mapState.cellSize) / 2;
+            drawMap();
+        };
+
+        // 初始化
+        async function loadWasm() {
+            try {
+                await init();
+                wasmReady = true;
+                document.getElementById('renderBtn').disabled = false;
+                document.getElementById('renderBtn').textContent = '🗺️ 渲染地图';
+                document.getElementById('searchBtn').disabled = false;
+                document.getElementById('statusText').textContent = 'WASM 加载完成';
+
+                // 自动渲染
+                renderMap();
+            } catch (e) {
+                document.getElementById('renderBtn').textContent = 'WASM 加载失败';
+                document.getElementById('statusText').textContent = '错误: ' + e.message;
+                console.error(e);
+            }
         }
 
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
         loadWasm();
     </script>
 </body>
