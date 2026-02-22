@@ -65,28 +65,47 @@ pub fn search(params: &SearchParams) -> Vec<SearchResult> {
         let mut window_sum: u32 = col_sum[..pw].iter().sum();
 
         // 检查第一个窗口位置
-        check_and_push(&mut heap, params.top_n, window_sum, x_min, window_z);
+        // 收集更多候选以便去重后仍有足够结果
+        let collect_n = params.top_n * 8;
+        check_and_push(&mut heap, collect_n, window_sum, x_min, window_z);
 
         // 滑动窗口
         for ix in 1..=(width - pw) {
             window_sum += col_sum[ix + pw - 1];
             window_sum -= col_sum[ix - 1];
             let window_x = x_min + ix as i32;
-            check_and_push(&mut heap, params.top_n, window_sum, window_x, window_z);
+            check_and_push(&mut heap, collect_n, window_sum, window_x, window_z);
         }
     }
 
-    // 从堆中提取结果，按 matched 降序排列
-    let mut results: Vec<SearchResult> = Vec::with_capacity(heap.len());
-    while let Some(Reverse((matched, cx, cz))) = heap.pop() {
-        results.push(SearchResult {
-            chunk_x: cx,
-            chunk_z: cz,
-            matched,
-            total,
-        });
+    // 从堆中提取候选，按 matched 降序排列
+    let mut candidates: Vec<(u32, i32, i32)> = Vec::with_capacity(heap.len());
+    while let Some(Reverse(item)) = heap.pop() {
+        candidates.push(item);
     }
-    results.reverse();
+    candidates.reverse(); // 降序
+
+    // 贪心去重：如果两个结果的矩形重叠，只保留得分更高的
+    let mut results: Vec<SearchResult> = Vec::new();
+    for &(matched, cx, cz) in &candidates {
+        let overlaps = results.iter().any(|r| {
+            let dx = (cx - r.chunk_x).unsigned_abs();
+            let dz = (cz - r.chunk_z).unsigned_abs();
+            dx < pw as u32 && dz < ph as u32
+        });
+        if !overlaps {
+            results.push(SearchResult {
+                chunk_x: cx,
+                chunk_z: cz,
+                matched,
+                total,
+            });
+            if results.len() >= params.top_n {
+                break;
+            }
+        }
+    }
+
     results
 }
 
