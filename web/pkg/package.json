@@ -1,0 +1,16 @@
+{
+  "name": "slime-search",
+  "type": "module",
+  "description": "Minecraft multi-chunk slime cluster searcher",
+  "version": "0.1.0",
+  "files": [
+    "slime_search_bg.wasm",
+    "slime_search.js",
+    "slime_search.d.ts"
+  ],
+  "main": "slime_search.js",
+  "types": "slime_search.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
