@@ -401,30 +401,45 @@
                     <label>搜索半径（区块）</label>
                     <input type="number" id="radius" value="500" min="10" max="100000">
                 </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>宽度</label>
-                        <input type="number" id="width" value="3" min="1" max="20">
+                <div class="form-group" style="margin-bottom:10px">
+                    <label>搜索模式</label>
+                    <select id="searchMode" onchange="onModeChange()" style="background:#111113;border:1px solid #2b2d31;border-radius:6px;padding:7px 10px;color:#edeef0;font-size:13px;width:100%;font-family:inherit;outline:none">
+                        <option value="rect">矩形区域（越多越好）</option>
+                        <option value="connected">最大连通群</option>
+                    </select>
+                </div>
+                <div id="rectOptions">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>宽度</label>
+                            <input type="number" id="width" value="3" min="1" max="20">
+                        </div>
+                        <div class="form-group">
+                            <label>高度</label>
+                            <input type="number" id="height" value="3" min="1" max="20">
+                        </div>
+                        <div class="form-group">
+                            <label>返回数</label>
+                            <input type="number" id="top" value="" min="1" max="100" placeholder="自动">
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label>高度</label>
-                        <input type="number" id="height" value="3" min="1" max="20">
+                    <div class="advanced-toggle" onclick="toggleAdvanced()">
+                        <span class="arrow" id="advArrow">▶</span>
+                        <span>自定义图案</span>
                     </div>
-                    <div class="form-group">
+                    <div class="pattern-editor" id="patternEditor" style="display:none">
+                        <div class="pattern-grid" id="patternGrid"></div>
+                        <div class="pattern-actions">
+                            <button onclick="fillPattern()">全选</button>
+                            <button onclick="clearPattern()">清空</button>
+                            <button onclick="invertPattern()">反转</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="connectedOptions" style="display:none">
+                    <div class="form-group" style="margin-bottom:10px">
                         <label>返回数</label>
-                        <input type="number" id="top" value="" min="1" max="100" placeholder="自动">
-                    </div>
-                </div>
-                <div class="advanced-toggle" onclick="toggleAdvanced()">
-                    <span class="arrow" id="advArrow">▶</span>
-                    <span>自定义图案</span>
-                </div>
-                <div class="pattern-editor" id="patternEditor" style="display:none">
-                    <div class="pattern-grid" id="patternGrid"></div>
-                    <div class="pattern-actions">
-                        <button onclick="fillPattern()">全选</button>
-                        <button onclick="clearPattern()">清空</button>
-                        <button onclick="invertPattern()">反转</button>
+                        <input type="number" id="topConnected" value="10" min="1" max="100">
                     </div>
                 </div>
                 <button class="btn-primary" id="searchBtn" onclick="doSearch()" disabled>加载中…</button>
@@ -495,9 +510,17 @@
                 showProgress(msg.progress, msg.status);
             } else if (msg.type === 'result') {
                 onSearchComplete(msg.results, msg.elapsed);
+            } else if (msg.type === 'result_connected') {
+                onConnectedComplete(msg.results, msg.elapsed);
             } else if (msg.type === 'error') {
                 onSearchError(msg.error);
             }
+        };
+
+        window.onModeChange = function() {
+            const mode = document.getElementById('searchMode').value;
+            document.getElementById('rectOptions').style.display = mode === 'rect' ? 'block' : 'none';
+            document.getElementById('connectedOptions').style.display = mode === 'connected' ? 'block' : 'none';
         };
 
         const VIEW_RADIUS = 40;
@@ -660,32 +683,10 @@
             const ox = Math.floor(blockX / 16);
             const oz = Math.floor(blockZ / 16);
             const radius = parseInt(document.getElementById('radius').value) || 500;
-            const pw = parseInt(document.getElementById('width').value) || 3;
-            const ph = parseInt(document.getElementById('height').value) || 3;
-            const topN = parseInt(document.getElementById('top').value) || (pw * ph);
 
-            mapState.patternW = pw;
-            mapState.patternH = ph;
             mapState._searchOx = ox;
             mapState._searchOz = oz;
-
-            // Build pattern_mask if advanced mode is on and not all-true
-            let mask = null;
-            if (advancedOpen && patternMask && patternMask.length === pw * ph) {
-                const allTrue = patternMask.every(v => v);
-                if (!allTrue) mask = patternMask;
-            }
-
-            const params = {
-                seed: seed.str,
-                origin_x: ox,
-                origin_z: oz,
-                search_radius: radius,
-                pattern_w: pw,
-                pattern_h: ph,
-                top_n: topN,
-            };
-            if (mask) params.pattern_mask = mask;
+            mapState._searchMode = document.getElementById('searchMode').value;
 
             document.getElementById('searchBtn').disabled = true;
             document.getElementById('searchBtn').textContent = '搜索中…';
@@ -700,7 +701,39 @@
                     `搜索 ${totalChunks.toLocaleString()} 个区块… ${elapsed}s`;
             }, 200);
 
-            worker.postMessage({ type: 'search', params });
+            if (mapState._searchMode === 'connected') {
+                const topN = parseInt(document.getElementById('topConnected').value) || 10;
+                mapState.patternW = 1;
+                mapState.patternH = 1;
+                worker.postMessage({
+                    type: 'search_connected',
+                    seedHi: seed.hi, seedLo: seed.lo,
+                    originX: ox, originZ: oz,
+                    radius, topN,
+                });
+            } else {
+                const pw = parseInt(document.getElementById('width').value) || 3;
+                const ph = parseInt(document.getElementById('height').value) || 3;
+                const topN = parseInt(document.getElementById('top').value) || (pw * ph);
+                mapState.patternW = pw;
+                mapState.patternH = ph;
+
+                let mask = null;
+                if (advancedOpen && patternMask && patternMask.length === pw * ph) {
+                    const allTrue = patternMask.every(v => v);
+                    if (!allTrue) mask = patternMask;
+                }
+
+                const params = {
+                    seed: seed.str,
+                    origin_x: ox, origin_z: oz,
+                    search_radius: radius,
+                    pattern_w: pw, pattern_h: ph,
+                    top_n: topN,
+                };
+                if (mask) params.pattern_mask = mask;
+                worker.postMessage({ type: 'search', params });
+            }
         };
 
         function onSearchComplete(results, elapsed) {
@@ -730,6 +763,62 @@
 
             document.getElementById('searchBtn').disabled = false;
             document.getElementById('searchBtn').textContent = '搜索';
+        }
+
+        function onConnectedComplete(results, elapsed) {
+            hideProgress();
+            const ox = mapState._searchOx || 0;
+            const oz = mapState._searchOz || 0;
+
+            // Convert connected results to display format
+            mapState.results = (results || []).map(r => ({
+                chunk_x: r.chunk_x,
+                chunk_z: r.chunk_z,
+                matched: r.size,
+                total: r.size,
+            }));
+            mapState.patternW = 1;
+            mapState.patternH = 1;
+
+            showConnectedResults(results || [], elapsed);
+
+            if (mapState.results.length > 0) {
+                mapState.activeResult = 0;
+                const r = mapState.results[0];
+                loadMapAround(r.chunk_x, r.chunk_z);
+            } else {
+                loadMapAround(ox, oz);
+            }
+
+            const radius = parseInt(document.getElementById('radius').value) || 500;
+            document.getElementById('statusText').textContent =
+                `${(radius*2+1)}×${(radius*2+1)} 区块 · ${mapState.results.length} 个连通群`;
+            document.getElementById('statusTime').textContent = `${elapsed.toFixed(1)}ms`;
+
+            document.getElementById('searchBtn').disabled = false;
+            document.getElementById('searchBtn').textContent = '搜索';
+        }
+
+        function showConnectedResults(results, elapsed) {
+            const panel = document.getElementById('resultsPanel');
+            const list = document.getElementById('resultsList');
+            panel.style.display = 'block';
+            document.getElementById('resultsCount').textContent = `${results.length} 个`;
+
+            if (!results.length) {
+                list.innerHTML = '<div class="result-empty">未找到结果</div>';
+                return;
+            }
+
+            list.innerHTML = results.map((r, i) => {
+                const bx = r.chunk_x * 16;
+                const bz = r.chunk_z * 16;
+                return `<div class="result-item ${i === 0 ? 'active' : ''}" onclick="selectResult(${i})">
+                    <span class="result-rank">${i+1}</span>
+                    <span class="result-coords">${bx}, ${bz}</span>
+                    <span class="result-score">${r.size} 区块</span>
+                </div>`;
+            }).join('');
         }
 
         function onSearchError(error) {

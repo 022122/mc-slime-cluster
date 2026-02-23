@@ -2,6 +2,7 @@ pub mod java_random;
 pub mod slime;
 pub mod search;
 pub mod types;
+pub mod connected;
 
 #[cfg(feature = "wasm")]
 mod wasm_api {
@@ -71,6 +72,14 @@ mod wasm_api {
     ///
     /// 返回一个 Uint8Array，每个字节 0 或 1，按行优先排列
     /// 用于前端 Canvas 绘制地图
+    /// WASM 导出：搜索最大连通史莱姆区块群
+    #[wasm_bindgen]
+    pub fn search_connected_chunks(seed_hi: i32, seed_lo: i32, origin_x: i32, origin_z: i32, search_radius: i32, top_n: usize) -> String {
+        let seed = ((seed_hi as i64) << 32) | (seed_lo as u32 as i64);
+        let results = crate::connected::search_connected(seed, origin_x, origin_z, search_radius, top_n);
+        serde_json::json!({ "results": results }).to_string()
+    }
+
     #[wasm_bindgen]
     pub fn get_slime_bitmap(seed_hi: i32, seed_lo: i32, cx_min: i32, cz_min: i32, width: i32, height: i32) -> Vec<u8> {
         let seed = ((seed_hi as i64) << 32) | (seed_lo as u32 as i64);
